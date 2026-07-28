@@ -25,3 +25,5 @@ while True:
 
 camera.release()
 cv2.destroyAllWindows()
+
+# mar e pra boca o percentual pra cansaco e o ear e o msm mas pro olho
