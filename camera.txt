@@ -1,0 +1,57 @@
+import cv2
+from detector import detectar_rosto
+from gpiozero import Buzzer
+
+# ==========================
+# CONFIGURAÇÃO
+# ==========================
+BUZZER_PIN = 17        # GPIO do buzzer (pino físico 11 na maioria das pinagens)
+EAR_THRESH = 0.25       # abaixo disso considera o olho fechado (calibre testando)
+FRAMES_CONSEC = 15      # frames seguidos de olho fechado até soar o alarme
+MOSTRAR_JANELA = True   # False se for rodar headless (sem monitor/HDMI)
+
+buzzer = Buzzer(BUZZER_PIN)
+contador = 0
+
+camera = cv2.VideoCapture(0)
+
+try:
+    while True:
+        ret, frame = camera.read()
+        if not ret:
+            break
+
+        frame, ear = detectar_rosto(frame)
+
+        if ear is not None:
+            if MOSTRAR_JANELA:
+                cv2.putText(frame, f"EAR: {ear:.2f}", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+            if ear < EAR_THRESH:
+                contador += 1
+                if contador >= FRAMES_CONSEC:
+                    buzzer.on()
+                    if MOSTRAR_JANELA:
+                        cv2.putText(frame, "FADIGA DETECTADA!", (10, 60),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            else:
+                contador = 0
+                buzzer.off()
+        else:
+            contador = 0
+            buzzer.off()
+
+        if MOSTRAR_JANELA:
+            cv2.imshow("Detector de Fadiga", frame)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+
+except KeyboardInterrupt:
+    pass
+
+finally:
+    buzzer.off()
+    camera.release()
+    if MOSTRAR_JANELA:
+        cv2.destroyAllWindows()

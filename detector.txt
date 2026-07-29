@@ -1,0 +1,85 @@
+import cv2
+import time
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+
+modelo = "face_landmarker.task"
+
+opcoes = vision.FaceLandmarkerOptions(
+    base_options=python.BaseOptions(
+        model_asset_path=modelo
+    ),
+    running_mode=vision.RunningMode.VIDEO,
+    num_faces=1
+)
+detector = vision.FaceLandmarker.create_from_options(opcoes)
+
+# Guarda o último tempo do frame
+ultimo_tempo = 0
+
+# Índices dos pontos dos olhos na malha do MediaPipe FaceMesh (468 pontos)
+OLHO_ESQ = [362, 385, 387, 263, 373, 380]
+OLHO_DIR = [33, 160, 158, 133, 153, 144]
+
+
+def calcular_ear(pontos, indices, largura, altura):
+    """Calcula o Eye Aspect Ratio (EAR) para um conjunto de 6 pontos do olho."""
+    coords = [(pontos[i].x * largura, pontos[i].y * altura) for i in indices]
+    p1, p2, p3, p4, p5, p6 = coords
+
+    A = ((p2[0] - p6[0]) ** 2 + (p2[1] - p6[1]) ** 2) ** 0.5
+    B = ((p3[0] - p5[0]) ** 2 + (p3[1] - p5[1]) ** 2) ** 0.5
+    C = ((p1[0] - p4[0]) ** 2 + (p1[1] - p4[1]) ** 2) ** 0.5
+
+    return (A + B) / (2.0 * C)
+
+def detectar_rosto(frame):
+    global ultimo_tempo
+
+    # OpenCV usa BGR
+    rgb = cv2.cvtColor(
+        frame,
+        cv2.COLOR_BGR2RGB
+    )
+
+    # Cria imagem MediaPipe
+    imagem_mp = mp.Image(
+        image_format=mp.ImageFormat.SRGB,
+        data=rgb
+    )
+
+    # Corrige timestamp
+    tempo_atual = int(time.time() * 1000)
+    if tempo_atual <= ultimo_tempo:
+        tempo_atual = ultimo_tempo + 1
+    ultimo_tempo = tempo_atual
+
+    # Detecta rosto
+    resultado = detector.detect_for_video(
+        imagem_mp,
+        timestamp_ms=tempo_atual
+    )
+
+    ear = None
+
+    # Desenha pontos do rosto e calcula o EAR
+    if resultado.face_landmarks:
+        for rosto in resultado.face_landmarks:
+            altura, largura, _ = frame.shape
+            for ponto in rosto:
+                x = int(ponto.x * largura)
+                y = int(ponto.y * altura)
+                cv2.circle(
+                    frame,
+                    (x, y),
+                    1,
+                    (0, 255, 0),
+                    -1
+                )
+
+            ear_esq = calcular_ear(rosto, OLHO_ESQ, largura, altura)
+            ear_dir = calcular_ear(rosto, OLHO_DIR, largura, altura)
+            ear = (ear_esq + ear_dir) / 2.0
+
+    return frame, ear
