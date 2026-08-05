@@ -36,5 +36,5 @@ Em `camera.py`:
 - `EAR_THRESH` — quanto menor, mais fechado o olho precisa estar pra contar. Calibre testando com a
   própria câmera e iluminação do carro.
 - `FRAMES_CONSEC` — quantos frames seguidos de olho fechado até o alarme disparar. O Pi 3B deve rodar
-  o MediaPipe a uns 5–15 FPS, então ajuste esse número pensando nesse FPS real (ex: 15 frames ≈ 1–3s).
+  o MediaPipe de uns 5 até 15 FPS, então ajuste esse número pensando nesse FPS real (ex: 15 frames ≈ 1–3s).
 - `MOSTRAR_JANELA` — deixe `False` se for rodar sem monitor/HDMI conectado (modo headless no carro).
