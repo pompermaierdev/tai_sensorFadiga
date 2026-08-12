@@ -2,9 +2,8 @@ import cv2
 from detec import detectar_rosto
 
 
-# ==========================
+
 # CONFIGURAÇÃO
-# ==========================
 BUZZER_PIN = 17
 EAR_THRESH = 0.18
 FRAMES_CONSEC = 15
@@ -16,9 +15,8 @@ MAR_THRESH = 0.60
 HEAD_ANGLE_THRESH = 15
 
 
-# ==========================
+
 # BUZZER
-# ==========================
 try:
     from gpiozero import Buzzer
 
@@ -78,9 +76,8 @@ try:
         if ear is not None:
 
 
-            # ---------------------------
+           
             # Fadiga pelos olhos
-            # ---------------------------
             if ear < EAR_THRESH:
                 contador += 1
 
@@ -103,9 +100,8 @@ try:
                 buzzer.off()
 
 
-            # ---------------------------
+            
             # Bocejo
-            # ---------------------------
             if mar is not None and mar > MAR_THRESH:
 
 
@@ -120,9 +116,8 @@ try:
                 )
 
 
-            # ---------------------------
+
             # Inclinação da cabeça
-            # ---------------------------
             if head_angle is not None and abs(head_angle) > HEAD_ANGLE_THRESH:
 
 
