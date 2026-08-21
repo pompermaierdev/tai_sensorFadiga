@@ -1,158 +1,100 @@
 import cv2
-from detec import detectar_rosto
+import serial
+import time
+from detec import detectar_rosto  # Importa a função do seu arquivo de detecção
 
+# ==========================================
+# CONFIGURAÇÕES E LIMIARES DO SISTEMA VIGIA
+# ==========================================
+PORTA_SERIAL = 'COM3'   # No Windows ajuste para a sua porta COM (ex: COM3, COM4). No Linux/Mac: '/dev/ttyUSB0'
+BAUD_RATE = 115200
 
+EAR_THRESH = 0.18       # Abaixo disso considera olho fechado
+FRAMES_CONSEC = 15      # Frames seguidos para confirmar olhos fechados (fadiga)
+MAR_THRESH = 0.60       # Acima disso considera bocejo
+HEAD_ANGLE_THRESH = 15  # Inclinação de cabeça (graus)
 
-# CONFIGURAÇÃO
-BUZZER_PIN = 17
-EAR_THRESH = 0.18
-FRAMES_CONSEC = 15
 MOSTRAR_JANELA = True
 
-
-# Limiares das novas detecções
-MAR_THRESH = 0.60
-HEAD_ANGLE_THRESH = 15
-
-
-
-# BUZZER
+# ==========================================
+# INICIALIZAÇÃO DA CONEXÃO SERIAL (ESP32)
+# ==========================================
 try:
-    from gpiozero import Buzzer
+    esp32 = serial.Serial(PORTA_SERIAL, BAUD_RATE, timeout=1)
+    time.sleep(2)  # Aguarda a inicialização do ESP32
+    print(f"[INFO] Conectado ao ESP32 com sucesso na porta {PORTA_SERIAL}.")
+except Exception as e:
+    esp32 = None
+    print(f"[AVISO] Não foi possível conectar ao ESP32 ({e}). Rodando em modo simulação.")
 
-
-    buzzer = Buzzer(BUZZER_PIN)
-    print("[INFO] Buzzer real (GPIO) detectado.")
-
-
-except Exception:
-
-
-    class BuzzerFake:
-        """Simula o buzzer quando não há GPIO disponível."""
-
-
-        def __init__(self):
-            self._ligado = False
-
-
-        def on(self):
-            if not self._ligado:
-                print("[BUZZER] LIGADO (simulado)")
-            self._ligado = True
-
-
-        def off(self):
-            if self._ligado:
-                print("[BUZZER] DESLIGADO (simulado)")
-            self._ligado = False
-
-
-    buzzer = BuzzerFake()
-    print("[INFO] GPIO não encontrado — usando buzzer simulado.")
-
-
-contador = 0
-
-
+contador_fadiga = 0
 camera = cv2.VideoCapture(0)
-
 
 try:
     while True:
-
-
         ret, frame = camera.read()
-
-
         if not ret:
             break
 
-
-        # Agora recebe EAR, MAR e ângulo da cabeça
+        # Chama sua função original de processamento facial
         frame, ear, mar, head_angle = detectar_rosto(frame)
 
+        comando = '0'  # Estado Padrão: Normal
 
         if ear is not None:
-
-
-           
-            # Fadiga pelos olhos
+            # 1. VERIFICAÇÃO DE FADIGA PELOS OLHOS (GRAVE)
             if ear < EAR_THRESH:
-                contador += 1
-
-
-                if contador >= FRAMES_CONSEC:
-                    buzzer.on()
-
-
-                    cv2.putText(
-                        frame,
-                        "FADIGA DETECTADA!",
-                        (10, 170),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8,
-                        (0, 0, 255),
-                        2
-                    )
+                contador_fadiga += 1
+                if contador_fadiga >= FRAMES_CONSEC:
+                    comando = '2'  # Comando de Emergência para o ESP32
+                    if MOSTRAR_JANELA:
+                        cv2.putText(frame, "PERIGO: FADIGA DETECTADA!", (10, 170),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
             else:
-                contador = 0
-                buzzer.off()
+                contador_fadiga = 0
 
+            # 2. VERIFICAÇÃO DE BOCEJO E INCLINAÇÃO (ALERTAS LEVES)
+            # Se não estiver no nível de emergência (olhos fechados), checa avisos preventivos
+            if comando != '2':
+                bocejo = (mar is not None and mar > MAR_THRESH)
+                cabeca_inclinada = (head_angle is not None and abs(head_angle) > HEAD_ANGLE_THRESH)
 
-            
-            # Bocejo
-            if mar is not None and mar > MAR_THRESH:
+                if bocejo:
+                    comando = '1'  # Alerta leve no ESP32
+                    if MOSTRAR_JANELA:
+                        cv2.putText(frame, "AVISO: BOCEJO DETECTADO", (10, 110),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
 
-
-                cv2.putText(
-                    frame,
-                    "BOCEJO DETECTADO",
-                    (10, 110),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (255, 0, 255),
-                    2
-                )
-
-
-
-            # Inclinação da cabeça
-            if head_angle is not None and abs(head_angle) > HEAD_ANGLE_THRESH:
-
-
-                cv2.putText(
-                    frame,
-                    "CABECA INCLINADA",
-                    (10, 140),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (0, 255, 255),
-                    2
-                )
-
+                if cabeca_inclinada:
+                    comando = '1'  # Alerta leve no ESP32
+                    if MOSTRAR_JANELA:
+                        cv2.putText(frame, "AVISO: CABECA INCLINADA", (10, 140),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
 
         else:
-            contador = 0
-            buzzer.off()
+            # Nenhum rosto na câmera: reinicia contadores
+            contador_fadiga = 0
 
+        # ==========================================
+        # ENVIO DO COMANDO SERIAL PARA O ESP32
+        # ==========================================
+        if esp32 is not None and esp32.is_open:
+            esp32.write(comando.encode())  # Envia '0', '1' ou '2' via cabo USB
 
         if MOSTRAR_JANELA:
-            cv2.imshow("Detector de Fadiga", frame)
-
-
+            cv2.imshow("Sistema Vigia - Detecção de Fadiga", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
-
 
 except KeyboardInterrupt:
     pass
 
-
 finally:
-    buzzer.off()
+    # Desliga alertas antes de encerrar
+    if esp32 is not None and esp32.is_open:
+        esp32.write(b'0')
+        esp32.close()
+    
     camera.release()
-
-
     if MOSTRAR_JANELA:
         cv2.destroyAllWindows()
