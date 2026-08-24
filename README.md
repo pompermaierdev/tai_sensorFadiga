@@ -1,40 +1,49 @@
-# Detector de Fadiga com Buzzer (Raspberry Pi)
+# 👁️ Vigia - Sistema de Detecção de Fadiga e Alerta veicular
 
-`pra rodar no pc use os detec e cameraT, pro raspberry usa os normais`
-## Instalação no Raspberry Pi
+O **Vigia** é um sistema de segurança veicular ativa desenvolvido para identificar sinais biomecânicos de fadiga humana em tempo real e intervir de forma automatizada no veículo. Utilizando computação visual no computador e controle embarcado no Arduino Uno, a aplicação monitora o nível de atenção do motorista e aciona atuadores de emergência em cenários críticos.
+
+---
+
+## 🛠️ Arquitetura do Sistema
+
+O projeto funciona de forma integrada entre o software de visão computacional (Python) e o hardware de resposta (Arduino Uno):
+
+1. **Captura e Processamento (Python + MediaPipe):** A câmera captura o rosto do motorista e calcula a métrica **EAR** (*Eye Aspect Ratio*) para identificar o fechamento prolongado dos olhos.
+2. **Comunicação Serial:** O Python envia comandos de status via porta COM para o microcontrolador a uma taxa de **9600 baud**.
+3. **Atuação no Hardware (Arduino Uno):** O Arduino lê os comandos enviados e controla o rotor (simulando a tração/motor do veículo), LEDs de alerta e alarme sonoro (buzzer).
+
+---
+
+## 📌 Esquema de Pinos (Pinout Arduino Uno)
+
+| Componente | Pino no Arduino | Função |
+| :--- | :--- | :--- |
+| **Ponte H (IN1)** | Pino 5 | Controle de direção/acionamento do Rotor |
+| **Ponte H (IN2)** | Pino 4 | Controle de direção/acionamento do Rotor |
+| **Buzzer** | Pino 8 | Sinalizador sonoro de emergência |
+| **LED 1 (Aviso)** | Pino 13 | Alerta preventivo de fadiga |
+| **LED 2 (Emergência)** | Pino 12 | Alerta crítico de fadiga |
+
+> **Nota:** Certifique-se de que a Ponte H L298N está alimentada com uma fonte externa adequada (ex: bateria de 9V a 12V) e com o pino **GND compartilhado** com o GND do Arduino Uno.
+
+---
+
+## 🚨 Estados de Operação
+
+- **Estado `0` (Normal):** Rotor em funcionamento normal (100%), LEDs apagados e buzzer desligado.
+- **Estado `1` (Alerta Leve / Bocejo):** Rotor mantido ligado, LED 1 aceso e beeps curtos no buzzer.
+- **Estado `2` (Fadiga Crítica):** Rotor desligado imediatamente (parada de emergência), ambos os LEDs (1 e 2) aceso e alarme sonoro contínuo.
+
+---
+
+## 📦 Dependências e Instalação
+
+### 1. Requisitos do Sistema
+- **Python 3.8+**
+- **Arduino IDE** (para gravação do firmware)
+
+### 2. Instalação das Bibliotecas Python
+Execute no terminal para instalar as dependências necessárias:
 
 ```bash
-sudo apt update
-sudo apt install python3-pip python3-venv -y
-
-python3 -m venv venv
-source venv/bin/activate
-
-pip install -r requirements.txt
-```
-
-> Se o `pip install mediapipe` falhar, confirme que o Raspberry Pi OS está em **64 bits** — o Pi 3B
-> suporta, mas por padrão muitas instalações vêm em 32 bits, e o MediaPipe não tem wheel pra 32 bits
-> nesse hardware.
-
-## Ligação do buzzer
-
-- **Buzzer ativo (2 pinos):** `+` no GPIO17 (pino físico 11), `-` no GND (ex: pino físico 9).
-
-Se o pino GPIO17 já estiver em uso por outra coisa, troque o valor de `BUZZER_PIN` em `camera.py`.
-
-## Rodando
-
-```bash
-python3 camera.py
-```
-
-## Ajustes finos
-
-Em `camera.py`:
-
-- `EAR_THRESH` — quanto menor, mais fechado o olho precisa estar pra contar. Calibre testando com a
-  própria câmera e iluminação do carro.
-- `FRAMES_CONSEC` — quantos frames seguidos de olho fechado até o alarme disparar. O Pi 3B deve rodar
-  o MediaPipe de uns 5 até 15 FPS, então ajuste esse número pensando nesse FPS real (ex: 15 frames ≈ 1–3s).
-- `MOSTRAR_JANELA` — deixe `False` se for rodar sem monitor/HDMI conectado (modo headless no carro).
+pip install opencv-python mediapipe numpy pyserial

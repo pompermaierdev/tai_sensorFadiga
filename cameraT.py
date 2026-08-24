@@ -1,100 +1,102 @@
 import cv2
+import numpy as np
 import serial
 import time
-from detec import detectar_rosto  # Importa a função do seu arquivo de detecção
+import urllib.request
+import os
+import mediapipe as mp
 
-# ==========================================
-# CONFIGURAÇÕES E LIMIARES DO SISTEMA VIGIA
-# ==========================================
-PORTA_SERIAL = 'COM3'   # No Windows ajuste para a sua porta COM (ex: COM3, COM4). No Linux/Mac: '/dev/ttyUSB0'
-BAUD_RATE = 115200
+PORTA_SERIAL = 'COM3'  
+BAUDRATE = 9600
 
-EAR_THRESH = 0.18       # Abaixo disso considera olho fechado
-FRAMES_CONSEC = 15      # Frames seguidos para confirmar olhos fechados (fadiga)
-MAR_THRESH = 0.60       # Acima disso considera bocejo
-HEAD_ANGLE_THRESH = 15  # Inclinação de cabeça (graus)
-
-MOSTRAR_JANELA = True
-
-# ==========================================
-# INICIALIZAÇÃO DA CONEXÃO SERIAL (ESP32)
-# ==========================================
 try:
-    esp32 = serial.Serial(PORTA_SERIAL, BAUD_RATE, timeout=1)
-    time.sleep(2)  # Aguarda a inicialização do ESP32
-    print(f"[INFO] Conectado ao ESP32 com sucesso na porta {PORTA_SERIAL}.")
+    arduino = serial.Serial(PORTA_SERIAL, BAUDRATE, timeout=1)
+    time.sleep(2)
+    arduino.reset_input_buffer()
+    print(f"[INFO] Conectado na porta {PORTA_SERIAL}")
 except Exception as e:
-    esp32 = None
-    print(f"[AVISO] Não foi possível conectar ao ESP32 ({e}). Rodando em modo simulação.")
+    print(f"[ERRO] Falha na conexão serial: {e}")
+    arduino = None
 
-contador_fadiga = 0
-camera = cv2.VideoCapture(0)
+MODEL_PATH = "face_landmarker.task"
+if not os.path.exists(MODEL_PATH):
+    url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+    urllib.request.urlretrieve(url, MODEL_PATH)
 
-try:
-    while True:
-        ret, frame = camera.read()
-        if not ret:
-            break
+BaseOptions = mp.tasks.BaseOptions
+FaceLandmarker = mp.tasks.vision.FaceLandmarker
+FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
+VisionRunningMode = mp.tasks.vision.RunningMode
 
-        # Chama sua função original de processamento facial
-        frame, ear, mar, head_angle = detectar_rosto(frame)
+options = FaceLandmarkerOptions(
+    base_options=BaseOptions(model_asset_path=MODEL_PATH),
+    running_mode=VisionRunningMode.IMAGE,
+    num_faces=1
+)
 
-        comando = '0'  # Estado Padrão: Normal
+landmarker = FaceLandmarker.create_from_options(options)
 
-        if ear is not None:
-            # 1. VERIFICAÇÃO DE FADIGA PELOS OLHOS (GRAVE)
-            if ear < EAR_THRESH:
-                contador_fadiga += 1
-                if contador_fadiga >= FRAMES_CONSEC:
-                    comando = '2'  # Comando de Emergência para o ESP32
-                    if MOSTRAR_JANELA:
-                        cv2.putText(frame, "PERIGO: FADIGA DETECTADA!", (10, 170),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+def calcular_ear(pts, p_h1, p_v1, p_v2, p_h2, p_v3, p_v4):
+    d_v1 = np.linalg.norm(pts[p_v1] - pts[p_v2])
+    d_v2 = np.linalg.norm(pts[p_v3] - pts[p_v4])
+    d_h = np.linalg.norm(pts[p_h1] - pts[p_h2])
+    return (d_v1 + d_v2) / (2.0 * d_h)
+
+LIMIAR_EAR = 0.21        
+FRAMES_FADIGA = 8        
+contador_frames = 0
+ultimo_estado = None
+
+cap = cv2.VideoCapture(0)
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    frame = cv2.flip(frame, 1)
+    h, w, _ = frame.shape
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+
+    detection_result = landmarker.detect(mp_image)
+    estado_atual = '0'
+
+    if detection_result.face_landmarks:
+        face = detection_result.face_landmarks[0]
+        pts = np.array([(int(pt.x * w), int(pt.y * h)) for pt in face])
+
+        ear_esq = calcular_ear(pts, 33, 160, 144, 133, 158, 153)
+        ear_dir = calcular_ear(pts, 362, 385, 380, 263, 387, 373)
+        ear_medio = (ear_esq + ear_dir) / 2.0
+
+        cv2.putText(frame, f"EAR: {ear_medio:.2f}", (30, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+
+        if ear_medio < LIMIAR_EAR:
+            contador_frames += 1
+            if contador_frames >= FRAMES_FADIGA:
+                estado_atual = '2' # FADIGA -> Buzzer + LEDs
+                cv2.putText(frame, "ALERTA: FADIGA DETECTADA!", (30, 90),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             else:
-                contador_fadiga = 0
-
-            # 2. VERIFICAÇÃO DE BOCEJO E INCLINAÇÃO (ALERTAS LEVES)
-            # Se não estiver no nível de emergência (olhos fechados), checa avisos preventivos
-            if comando != '2':
-                bocejo = (mar is not None and mar > MAR_THRESH)
-                cabeca_inclinada = (head_angle is not None and abs(head_angle) > HEAD_ANGLE_THRESH)
-
-                if bocejo:
-                    comando = '1'  # Alerta leve no ESP32
-                    if MOSTRAR_JANELA:
-                        cv2.putText(frame, "AVISO: BOCEJO DETECTADO", (10, 110),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2)
-
-                if cabeca_inclinada:
-                    comando = '1'  # Alerta leve no ESP32
-                    if MOSTRAR_JANELA:
-                        cv2.putText(frame, "AVISO: CABECA INCLINADA", (10, 140),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-
+                estado_atual = '1' # ATENÇÃO -> Apenas LED 1
         else:
-            # Nenhum rosto na câmera: reinicia contadores
-            contador_fadiga = 0
+            contador_frames = 0
+            estado_atual = '0'
 
-        # ==========================================
-        # ENVIO DO COMANDO SERIAL PARA O ESP32
-        # ==========================================
-        if esp32 is not None and esp32.is_open:
-            esp32.write(comando.encode())  # Envia '0', '1' ou '2' via cabo USB
+    if arduino and estado_atual != ultimo_estado:
+        arduino.write(estado_atual.encode())
+        print(f"[SERIAL] Estado: {estado_atual}")
+        ultimo_estado = estado_atual
 
-        if MOSTRAR_JANELA:
-            cv2.imshow("Sistema Vigia - Detecção de Fadiga", frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+    cv2.imshow("Monitoramento de Fadiga", frame)
 
-except KeyboardInterrupt:
-    pass
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-finally:
-    # Desliga alertas antes de encerrar
-    if esp32 is not None and esp32.is_open:
-        esp32.write(b'0')
-        esp32.close()
-    
-    camera.release()
-    if MOSTRAR_JANELA:
-        cv2.destroyAllWindows()
+cap.release()
+cv2.destroyAllWindows()
+if arduino:
+    arduino.write(b'0')
+    arduino.close()
