@@ -1,15 +1,12 @@
-// ==========================================================
-// FIRMWARE CORRIGIDO PARA A SUA MONTAGEM FÍSICA
-// ==========================================================
+// para rodar no arduino uno
+// ponte H L298N (Controle do motor)
+const int PIN_IN1 = 4;     // in1 da Ponte H
+const int PIN_IN2 = 5;     // in2 da Ponte H
 
-// Ponte H L298N (Controle do Rotor)
-const int PIN_IN1 = 4;     // Pino 4 do Arduino -> IN1 da Ponte H
-const int PIN_IN2 = 5;     // Pino 5 do Arduino -> IN2 da Ponte H
-
-// Alertas na Protoboard
-const int PIN_BUZZER = 10; // Pino 10 do Arduino -> Buzzer
-const int PIN_LED1 = 12;   // Pino 12 do Arduino -> LED 1
-const int PIN_LED2 = 13;   // Pino 13 do Arduino -> LED 2
+// alertas na Protoboard
+const int PIN_BUZZER = 10; 
+const int PIN_LED1 = 12;  
+const int PIN_LED2 = 13;  
 
 void setup() {
   Serial.begin(9600);
@@ -20,7 +17,7 @@ void setup() {
   pinMode(PIN_LED1, OUTPUT);
   pinMode(PIN_LED2, OUTPUT);
 
-  // ESTADO INICIAL: Motor LIGADO, LEDs e Buzzer DESLIGADOS
+  // estado inicial: motor LIGADO, LEDs e Buzzer DESLIGADOS
   digitalWrite(PIN_IN1, HIGH);
   digitalWrite(PIN_IN2, LOW);
   digitalWrite(PIN_LED1, LOW);
@@ -33,7 +30,7 @@ void loop() {
     char comando = Serial.read();
 
     if (comando == '0') {
-      // ESTADO 0: NORMAL -> Liga Rotor, Desliga Avisos
+      // estado 0: normal = liga motor, desliga os avisos
       digitalWrite(PIN_IN1, HIGH);
       digitalWrite(PIN_IN2, LOW);
       digitalWrite(PIN_LED1, LOW);
@@ -41,7 +38,7 @@ void loop() {
       digitalWrite(PIN_BUZZER, LOW);
     } 
     else if (comando == '1') {
-      // ESTADO 1: ATENÇÃO -> Mantém Rotor, Liga LED 1
+      // estado 1: ATENÇÃO = mantem o motor, liga LED 1
       digitalWrite(PIN_IN1, HIGH);
       digitalWrite(PIN_IN2, LOW);
       digitalWrite(PIN_LED1, HIGH);
