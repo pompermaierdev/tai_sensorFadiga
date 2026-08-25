@@ -27,7 +27,7 @@ OLHO_ESQ = [362, 385, 387, 263, 373, 380]
 OLHO_DIR = [33, 160, 158, 133, 153, 144]
 
 
-# Mouth landmarks
+
 BOCA = {
     "esq": 61,
     "dir": 291,
@@ -47,7 +47,7 @@ def distancia(p1, p2):
 
 
 
-
+#calulo do EAR (dos olhos)
 def calcular_ear(pontos, indices, largura, altura):
     coords = [(pontos[i].x * largura, pontos[i].y * altura) for i in indices]
 
@@ -64,7 +64,7 @@ def calcular_ear(pontos, indices, largura, altura):
 
 
 
-
+# MAR (calcullo da boca)
 def calcular_mar(pontos, largura, altura):
     pts = {}
 
@@ -86,7 +86,7 @@ def calcular_mar(pontos, largura, altura):
 
 
 
-
+#calculo da inclinação da cabeça
 def calcular_head_angle(pontos, largura, altura):
     olho_esq = pontos[33]
     olho_dir = pontos[263]
@@ -107,7 +107,7 @@ def calcular_head_angle(pontos, largura, altura):
 
 
 
-
+#detecta o rosto
 def detectar_rosto(frame):
     global ultimo_tempo
 
