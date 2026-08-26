@@ -11,7 +11,7 @@ PORTA_SERIAL = 'COM3'  #pra linkar com o arduino
 BAUDRATE = 9600 #vel da comunicação serial (computador e arduino)
 
 try:
-    arduino = serial.Serial(PORTA_SERIAL, BAUDRATE, timeout=1)abrir a porta
+    arduino = serial.Serial(PORTA_SERIAL, BAUDRATE, timeout=1)
     print("[INFO] Aguardando estabilização do Arduino...")
     time.sleep(3)
     arduino.reset_input_buffer()#limpa a memoria de entrada
