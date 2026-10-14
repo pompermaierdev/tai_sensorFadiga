@@ -46,8 +46,8 @@ def calcular_ear(pts, p_h1, p_v1, p_v2, p_h2, p_v3, p_v4):
 
 # regras de tempo
 LIMIAR_EAR = 0.21        
-FRAMES_BUZZER = 6      # 0.5 seg com olhos fechados = liga Buzzer
-FRAMES_DORMINDO = 18   # 1.5 seg com olhos fechados = Parada do motor + Pisca-alerta
+FRAMES_BUZZER = 12      # 1 seg com olhos fechados = liga Buzzer
+FRAMES_DORMINDO = 72   # 6 seg com olhos fechados = Parada do motor + Pisca-alerta
 
 contador_frames = 0
 ultimo_estado = None
