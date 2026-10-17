@@ -1,11 +1,10 @@
-// ===== MOTOR 1 (ponte H) =====
+// MOTOR 1
 const int PIN_IN1 = 9;   // PWM
 const int PIN_IN2 = 5;   // PWM
-// ===== MOTOR 2 (ponte H) =====
+// MOTOR 2 
 const int PIN_IN3 = 4;   // sem PWM
 const int PIN_IN4 = 6;   // PWM
 
-// ===== ALERTAS =====
 const int PIN_BUZZER = 10;
 const int PIN_LED1   = 12;
 const int PIN_LED2   = 13;
@@ -67,10 +66,10 @@ void loop() {
   else if (estadoAtual == '2') {       // dormindo
     tone(PIN_BUZZER, 1200);
 
-    // desacelera 5 unidades a cada 30 ms, sem travar o loop
+    // desacelera 4 unidades a cada 30 ms, sem travar o loop
     if (velocidadeMotor > 0 && agora - tempoRampa >= 30) {
       tempoRampa = agora;
-      velocidadeMotor -= 5;
+      velocidadeMotor -=4 ;
       if (velocidadeMotor < 0) velocidadeMotor = 0;
       moverMotores(velocidadeMotor);
     }
